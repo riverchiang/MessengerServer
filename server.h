@@ -21,7 +21,7 @@ struct clientInfo
 {
     QString name;
     QString passwd;
-    quint64 uid;
+    int uid;
 };
 
 class Server : public QDialog
@@ -45,7 +45,8 @@ private:
     QDataStream in;
     quint64 cmdID = 0;
     quint64 blockSize = 0;
-    quint64 uid = 0;
+    quint64 clientUid = 0;
+    int uid = 1;
     QVector<struct clientInfo> clientVector;
 
     void sendReturn(QTcpSocket *socket, quint64 id, QString message);

@@ -105,46 +105,81 @@ void Server::readData()
         qDebug() << blockSize;
     }
 
-    if (socket->bytesAvailable() < blockSize)
-        return;
+    if (cmdID == 6) {
+        if (clientUid == 0) {
+            if (socket->bytesAvailable() < (int)sizeof(quint64))
+                return;
+            in >> clientUid;
+            qDebug() << clientUid;
+        }
 
-    QString myData;
-    in >> myData;
-    qDebug() << "myData " << myData;
-    QString name = myData.split(" ").at(0);
-    QString password = myData.split(" ").at(1);
-    qDebug() << name;
-    qDebug() << password;
+        if (socket->bytesAvailable() < blockSize)
+            return;
 
-    if (cmdID == 1) {
-        struct clientInfo tempInfo;
-        tempInfo.name = name;
-        tempInfo.passwd = password;
-        tempInfo.uid = uid;
-        uid++;
-
-        clientVector.push_back(tempInfo);
-
-        for (int i = 0; i < clientVector.count(); ++i)
-            qDebug() << clientVector[i].name << " " << clientVector[i].passwd << " "<<clientVector[i].uid;
-
-        sendReturn(socket, cmdID, "Success add user" + name);
-    }
-
-    if (cmdID == 2) {
-        bool checking = false;
-        for (int i = 0; i < clientVector.count(); ++i) {
-            if ((!clientVector[i].name.compare(name)) && (!clientVector[i].passwd.compare(password))) {
-                checking = true;
+        QByteArray nextByte;
+        in >> nextByte;
+        QString clientName;
+        for (int i = 0; i < clientVector.count(); i++)
+            if (clientVector[i].uid == clientUid) {
+                clientName = clientVector[i].name;
                 break;
             }
-        }
-        if (checking)
-            sendReturn(socket, cmdID, "yes");
-        else
-            sendReturn(socket, cmdID, "no");
-    }
 
+        QString clientFolder = "C:/Users/A60013/Pictures/temp/" + clientName;
+        QDir dir(clientFolder);
+        if (!dir.exists()) {
+            dir.mkpath(".");
+        }
+        QString clientFile = clientFolder + "/" + clientName + ".jpg";
+        qDebug() << "client file " << clientFile;
+        QFile file(clientFile);
+        file.open(QIODevice::WriteOnly);
+        file.write(nextByte);
+        file.close();
+
+        clientUid = 0;
+    }
+    else {
+        if (socket->bytesAvailable() < blockSize)
+            return;
+
+        QString myData;
+        in >> myData;
+        qDebug() << "myData " << myData;
+        QString name = myData.split(" ").at(0);
+        QString password = myData.split(" ").at(1);
+        qDebug() << name;
+        qDebug() << password;
+
+        if (cmdID == 1) {
+            struct clientInfo tempInfo;
+            tempInfo.name = name;
+            tempInfo.passwd = password;
+            tempInfo.uid = uid;
+            uid++;
+
+            clientVector.push_back(tempInfo);
+
+            for (int i = 0; i < clientVector.count(); ++i)
+                qDebug() << clientVector[i].name << " " << clientVector[i].passwd << " "<<clientVector[i].uid;
+
+            sendReturn(socket, cmdID, QString::number(uid-1) + "|Success add user : " + name + "|");
+        }
+
+        if (cmdID == 2) {
+            bool checking = false;
+            for (int i = 0; i < clientVector.count(); ++i) {
+                if ((!clientVector[i].name.compare(name)) && (!clientVector[i].passwd.compare(password))) {
+                    checking = true;
+                    break;
+                }
+            }
+            if (checking)
+                sendReturn(socket, cmdID, "yes");
+            else
+                sendReturn(socket, cmdID, "no");
+        }
+    }
     cmdID = 0;
     blockSize = 0;
     /*
