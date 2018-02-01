@@ -125,7 +125,7 @@ void Server::readData()
                 break;
             }
 
-        QString clientFolder = "C:/Users/A60013/Pictures/temp/" + clientName;
+        QString clientFolder = picFolder + clientName;
         QDir dir(clientFolder);
         if (!dir.exists()) {
             dir.mkpath(".");
@@ -152,6 +152,10 @@ void Server::readData()
         qDebug() << password;
 
         if (cmdID == 1) {
+            for (int i = 0; i < clientVector.count(); ++i)
+                if (!clientVector[i].name.compare(name))
+                    sendReturn(socket, cmdID, "0|User name " + name +" already exist|" );
+
             struct clientInfo tempInfo;
             tempInfo.name = name;
             tempInfo.passwd = password;
