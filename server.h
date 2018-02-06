@@ -17,11 +17,18 @@ namespace Ui {
 class Server;
 }
 
+struct message
+{
+    int uid;
+    QString text;
+};
+
 struct clientInfo
 {
     QString name;
     QString passwd;
     int uid;
+    QVector<struct message> messageBox;
 };
 
 class Server : public QDialog

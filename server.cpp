@@ -16,6 +16,7 @@ Server::Server(QWidget *parent) :
     mytime = timestamp.currentDateTime().toString();
     qDebug() << mytime;
     */
+
     QVBoxLayout *mainLayout = nullptr;
     mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(statusLabel);
@@ -59,7 +60,7 @@ void Server::sendReturn(QTcpSocket *socket, quint64 id, QString message)
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_5_9);
 
-    qDebug() << message;
+    //qDebug() << message;
 
     out << (quint64)0;
     out << (quint64)0;
@@ -145,45 +146,109 @@ void Server::readData()
 
         QString myData;
         in >> myData;
-        qDebug() << "myData " << myData;
-        QString name = myData.split(" ").at(0);
-        QString password = myData.split(" ").at(1);
-        qDebug() << name;
-        qDebug() << password;
+        //qDebug() << "myData " << myData;
 
-        if (cmdID == 1) {
-            for (int i = 0; i < clientVector.count(); ++i)
-                if (!clientVector[i].name.compare(name))
-                    sendReturn(socket, cmdID, "0|User name " + name +" already exist|" );
+        if (cmdID == 1 || cmdID == 2) {
+            QString name = myData.split(" ").at(0);
+            QString password = myData.split(" ").at(1);
+            //qDebug() << name;
+            //qDebug() << password;
 
-            struct clientInfo tempInfo;
-            tempInfo.name = name;
-            tempInfo.passwd = password;
-            tempInfo.uid = uid;
-            uid++;
+            if (cmdID == 1) {
+                for (int i = 0; i < clientVector.count(); ++i)
+                    if (!clientVector[i].name.compare(name))
+                        sendReturn(socket, cmdID, "0|User name " + name +" already exist|" );
 
-            clientVector.push_back(tempInfo);
+                struct clientInfo tempInfo;
+                tempInfo.name = name;
+                tempInfo.passwd = password;
+                tempInfo.uid = uid;
+                tempInfo.messageBox.clear();
+                uid++;
 
-            for (int i = 0; i < clientVector.count(); ++i)
-                qDebug() << clientVector[i].name << " " << clientVector[i].passwd << " "<<clientVector[i].uid;
+                clientVector.push_back(tempInfo);
 
-            sendReturn(socket, cmdID, QString::number(uid-1) + "|Success add user : " + name + "|");
+                /*
+                for (int i = 0; i < clientVector.count(); ++i)
+                    qDebug() << clientVector[i].name << " " << clientVector[i].passwd << " "<<clientVector[i].uid;
+                */
+
+                sendReturn(socket, cmdID, QString::number(uid-1) + "|Success add user : " + name + "|");
+            }
+
+            if (cmdID == 2) {
+                bool checking = false;
+                int uid;
+                for (int i = 0; i < clientVector.count(); ++i) {
+                    if ((!clientVector[i].name.compare(name)) && (!clientVector[i].passwd.compare(password))) {
+                        checking = true;
+                        uid = clientVector[i].uid;
+                        break;
+                    }
+                }
+                if (checking)
+                    sendReturn(socket, cmdID, "yes " + QString::number(uid) + " ");
+                else
+                    sendReturn(socket, cmdID, "no 0");
+            }
+        }
+        if (cmdID == 3) {
+            int uid = myData.toInt();
+            QString returnValue = "";
+            returnValue = returnValue + QString::number(clientVector.count() - 1) + " ";
+            for (int i = 0; i < clientVector.count(); ++i) {
+                if (clientVector[i].uid != uid) {
+                    returnValue = returnValue + clientVector[i].name + " " + QString::number(clientVector[i].uid) + " ";
+                }
+            }
+            sendReturn(socket, cmdID, returnValue);
         }
 
-        if (cmdID == 2) {
-            bool checking = false;
-            for (int i = 0; i < clientVector.count(); ++i) {
-                if ((!clientVector[i].name.compare(name)) && (!clientVector[i].passwd.compare(password))) {
-                    checking = true;
+        if (cmdID == 4) {
+            QString sendUidString = myData.split(" ").at(0);
+            QString recvUidString = myData.split(" ").at(1);
+            int sendUid = sendUidString.toInt();
+            int recvUid = recvUidString.toInt();
+            QString messageText = myData.split("\n").at(1);
+
+            qDebug() << "ID 4 " << sendUidString << recvUidString << messageText;
+            for (int i = 0; i < clientVector.count(); i++) {
+                if (clientVector[i].uid == recvUid) {
+                    struct message tempMessage;
+                    tempMessage.text = messageText;
+                    tempMessage.uid = sendUid;
+                    clientVector[i].messageBox.push_back(tempMessage);
                     break;
                 }
             }
-            if (checking)
-                sendReturn(socket, cmdID, "yes");
-            else
-                sendReturn(socket, cmdID, "no");
+        }
+
+        if (cmdID == 5) {
+            int uid = myData.toInt();
+            int msgNum = 0;
+            int senderUid;
+            QString senderMsg;
+            QString clientMsg = "";
+            for (int i = 0; i < clientVector.count(); i++) {
+                if (uid == clientVector[i].uid) {
+                    msgNum = clientVector[i].messageBox.count();
+                    if (msgNum > 0) {
+                        clientMsg = clientMsg + QString::number(msgNum) + "\n";
+                        for (int j = 0; j < msgNum; j++) {
+                            senderUid = clientVector[i].messageBox[j].uid;
+                            senderMsg = clientVector[i].messageBox[j].text;
+                            clientMsg = clientMsg + QString::number(senderUid) + "\n" + senderMsg + "\n";
+                        }
+                        qDebug() << "send 5 " << clientMsg;
+                        sendReturn(socket, cmdID, clientMsg);
+                        clientVector[i].messageBox.clear();
+                    }
+                    break;
+                }
+            }
         }
     }
+
     cmdID = 0;
     blockSize = 0;
     /*
