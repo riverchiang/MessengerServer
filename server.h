@@ -56,8 +56,8 @@ private:
     int uid = 1;
     QVector<struct clientInfo> clientVector;
 
-    //QString picFolder = "C:/Users/A60013/Pictures/temp/";
-    QString picFolder = "L:/Users/admin/Pictures/temp/";
+    //QString picFolder = "C:/Users/A60013/Pictures/temp/server/";
+    QString picFolder = "L:/Users/admin/Pictures/temp/server/";
     void sendReturn(QTcpSocket *socket, quint64 id, QString message);
 };
 

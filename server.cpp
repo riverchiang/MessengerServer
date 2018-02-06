@@ -80,18 +80,6 @@ void Server::readData()
     in.setDevice(socket);
     in.setVersion(QDataStream::Qt_5_9);
 
-    /*
-    in.startTransaction();
-    QString nextFortune;
-    in >> nextFortune;
-
-    if (!in.commitTransaction()) {
-        return;
-    }
-
-    qDebug() << "Server receive" << nextFortune;
-    */
-
     if (cmdID == 0) {
         if (socket->bytesAvailable() < (int)sizeof(quint64))
             return;
