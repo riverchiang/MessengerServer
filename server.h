@@ -47,11 +47,12 @@ private slots:
 
 private:
     Ui::Server *ui;
+    enum MessengerCmd{None = 0, Register, Login, FriendList, TalkSend, TalkRecv, PicSend, PicMeta, PicRecv};
     QLabel *statusLabel = nullptr;
     QTcpServer *tcpServer = nullptr;
     QNetworkSession *networkSession = nullptr;
     QDataStream in;
-    quint64 cmdID = 0;
+    quint64 cmdID = None;
     quint64 blockSize = 0;
     quint64 clientUid = 0;
     int uid = 1;

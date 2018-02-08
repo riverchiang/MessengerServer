@@ -80,7 +80,7 @@ void Server::readData()
     in.setDevice(socket);
     in.setVersion(QDataStream::Qt_5_9);
 
-    if (cmdID == 0) {
+    if (cmdID == None) {
         if (socket->bytesAvailable() < (int)sizeof(quint64))
             return;
         in >> cmdID;
@@ -94,7 +94,7 @@ void Server::readData()
         qDebug() << blockSize;
     }
 
-    if (cmdID == 6) {
+    if (cmdID == PicSend) {
         if (clientUid == 0) {
             if (socket->bytesAvailable() < (int)sizeof(quint64))
                 return;
@@ -135,13 +135,13 @@ void Server::readData()
         in >> myData;
         //qDebug() << "myData " << myData;
 
-        if (cmdID == 1 || cmdID == 2) {
+        if (cmdID == Register || cmdID == Login) {
             QString name = myData.split(" ").at(0);
             QString password = myData.split(" ").at(1);
             //qDebug() << name;
             //qDebug() << password;
 
-            if (cmdID == 1) {
+            if (cmdID == Register) {
                 for (int i = 0; i < clientVector.count(); ++i)
                     if (!clientVector[i].name.compare(name))
                         sendReturn(socket, cmdID, "0|User name " + name +" already exist|" );
@@ -164,7 +164,7 @@ void Server::readData()
                 sendReturn(socket, cmdID, QString::number(uid-1) + "|Success add user : " + name + "|");
             }
 
-            if (cmdID == 2) {
+            if (cmdID == Login) {
                 bool checking = false;
                 int uid;
                 for (int i = 0; i < clientVector.count(); ++i) {
@@ -180,7 +180,7 @@ void Server::readData()
                     sendReturn(socket, cmdID, "no 0");
             }
         }
-        if (cmdID == 3) {
+        if (cmdID == FriendList) {
             int uid = myData.toInt();
             QString returnValue = "";
             returnValue = returnValue + QString::number(clientVector.count() - 1) + " ";
@@ -192,7 +192,7 @@ void Server::readData()
             sendReturn(socket, cmdID, returnValue);
         }
 
-        if (cmdID == 4) {
+        if (cmdID == TalkSend) {
             QString sendUidString = myData.split(" ").at(0);
             QString recvUidString = myData.split(" ").at(1);
             int sendUid = sendUidString.toInt();
@@ -211,7 +211,7 @@ void Server::readData()
             }
         }
 
-        if (cmdID == 5) {
+        if (cmdID == TalkRecv) {
             int uid = myData.toInt();
             int msgNum = 0;
             int senderUid;
@@ -236,7 +236,7 @@ void Server::readData()
             }
         }
 
-        if (cmdID == 7) {
+        if (cmdID == PicMeta) {
             QString clientMsg = "";
             int picNumber = 0;
             for (int i = 0; i < clientVector.count(); ++i) {
@@ -252,7 +252,7 @@ void Server::readData()
             }
         }
 
-        if (cmdID == 8) {
+        if (cmdID == PicRecv) {
             int uid = myData.toInt();
             qDebug() << "cmdid 8 " << uid;
             QString clientFile = picFolder + "/" + QString::number(uid) + ".jpg";
@@ -260,7 +260,7 @@ void Server::readData()
         }
     }
 
-    cmdID = 0;
+    cmdID = None;
     blockSize = 0;
     /*
     QByteArray nextByte;
