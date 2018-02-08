@@ -28,6 +28,7 @@ struct clientInfo
     QString name;
     QString passwd;
     int uid;
+    bool hasClientIcon;
     QVector<struct message> messageBox;
 };
 
@@ -56,9 +57,10 @@ private:
     int uid = 1;
     QVector<struct clientInfo> clientVector;
 
-    //QString picFolder = "C:/Users/A60013/Pictures/temp/server/";
-    QString picFolder = "L:/Users/admin/Pictures/temp/server/";
+    QString picFolder = "C:/Users/A60013/Pictures/temp/server/";
+    //QString picFolder = "L:/Users/admin/Pictures/temp/server/";
     void sendReturn(QTcpSocket *socket, quint64 id, QString message);
+    void sendNetworkfile(QString filePath, QTcpSocket *socket, int uid);
 };
 
 #endif // SERVER_H

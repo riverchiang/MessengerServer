@@ -107,19 +107,18 @@ void Server::readData()
 
         QByteArray nextByte;
         in >> nextByte;
-        QString clientName;
         for (int i = 0; i < clientVector.count(); i++)
             if (clientVector[i].uid == clientUid) {
-                clientName = clientVector[i].name;
+                clientVector[i].hasClientIcon = true;
                 break;
             }
 
-        QString clientFolder = picFolder + clientName;
-        QDir dir(clientFolder);
+        //QString clientFolder = picFolder + QString::number((int)clientUid);
+        QDir dir(picFolder);
         if (!dir.exists()) {
             dir.mkpath(".");
         }
-        QString clientFile = clientFolder + "/" + clientName + ".jpg";
+        QString clientFile = picFolder + QString::number((int)clientUid) + ".jpg";
         qDebug() << "client file " << clientFile;
         QFile file(clientFile);
         file.open(QIODevice::WriteOnly);
@@ -152,6 +151,7 @@ void Server::readData()
                 tempInfo.passwd = password;
                 tempInfo.uid = uid;
                 tempInfo.messageBox.clear();
+                tempInfo.hasClientIcon = false;
                 uid++;
 
                 clientVector.push_back(tempInfo);
@@ -235,6 +235,29 @@ void Server::readData()
                 }
             }
         }
+
+        if (cmdID == 7) {
+            QString clientMsg = "";
+            int picNumber = 0;
+            for (int i = 0; i < clientVector.count(); ++i) {
+                if (clientVector[i].hasClientIcon) {
+                    clientMsg = clientMsg + " " + QString::number(clientVector[i].uid);
+                    picNumber++;
+                }
+            }
+
+            if (picNumber > 0) {
+                clientMsg = QString::number(picNumber) + clientMsg + " ";
+                sendReturn(socket, cmdID, clientMsg);
+            }
+        }
+
+        if (cmdID == 8) {
+            int uid = myData.toInt();
+            qDebug() << "cmdid 8 " << uid;
+            QString clientFile = picFolder + "/" + QString::number(uid) + ".jpg";
+            sendNetworkfile(clientFile, socket, uid);
+        }
     }
 
     cmdID = 0;
@@ -248,6 +271,34 @@ void Server::readData()
     file.write(nextByte);
     file.close();
     */
+}
+
+void Server::sendNetworkfile(QString filePath, QTcpSocket *socket, int uid)
+{
+    QFile file(filePath);
+    if (!file.open(QFile::ReadOnly))
+    {
+        qDebug() << "open file path " + filePath + "failed";
+        return;
+    }
+
+    QByteArray block;
+    QDataStream out(&block, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_5_9);
+
+    out << (quint64)0;
+    out << (quint64)0;
+    out << (quint64)0;
+    out << file.readAll();
+    out.device()->seek(0);
+    out << (quint64)8;
+    out.device()->seek(sizeof(quint64));
+    out << (quint64)(block.size() - (3 * sizeof(quint64)));
+    out.device()->seek(2 * sizeof(quint64));
+    out << (quint64)uid;
+
+    socket->write(block);
+    socket->waitForBytesWritten();
 }
 
 void Server::sendTimeStamp()
