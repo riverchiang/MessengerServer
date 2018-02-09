@@ -9,13 +9,6 @@ Server::Server(QWidget *parent) :
     statusLabel(new QLabel)
 {
     ui->setupUi(this);
-    /*
-    QDateTime timestamp;
-    QString mytime;
-
-    mytime = timestamp.currentDateTime().toString();
-    qDebug() << mytime;
-    */
 
     QVBoxLayout *mainLayout = nullptr;
     mainLayout = new QVBoxLayout(this);
@@ -23,7 +16,7 @@ Server::Server(QWidget *parent) :
 
     sessionOpened();
 
-    connect(tcpServer, &QTcpServer::newConnection, this, &Server::sendTimeStamp);
+    connect(tcpServer, &QTcpServer::newConnection, this, &Server::handleNewConn);
 }
 
 void Server::sessionOpened()
@@ -50,7 +43,7 @@ void Server::sessionOpened()
     if (ipAddress.isEmpty())
         ipAddress = QHostAddress(QHostAddress::LocalHost).toString();
     statusLabel->setText(tr("The server is running on\n\nIP: %1\nport: %2\n\n"
-                            "Run the Fortune Client example now.")
+                            "Run the Messanger now.")
                          .arg(ipAddress).arg(tcpServer->serverPort()));
 }
 
@@ -74,6 +67,155 @@ void Server::sendReturn(QTcpSocket *socket, quint64 id, QString message)
     socket->waitForBytesWritten();
 }
 
+void Server::recvClientCmdRegister(QString recvData, QTcpSocket *socket)
+{
+    QString name = recvData.split(" ").at(0);
+    QString password = recvData.split(" ").at(1);
+    for (int i = 0; i < clientVector.count(); ++i)
+        if (!clientVector[i].name.compare(name))
+            sendReturn(socket, cmdID, "0|User name " + name +" already exist|" );
+
+    struct clientInfo tempInfo;
+    tempInfo.name = name;
+    tempInfo.passwd = password;
+    tempInfo.uid = uid;
+    tempInfo.messageBox.clear();
+    tempInfo.hasClientIcon = false;
+    uid++;
+
+    clientVector.push_back(tempInfo);
+
+    sendReturn(socket, cmdID, QString::number(uid-1) + "|Success add user : " + name + "|");
+}
+
+void Server::recvClientCmdLogin(QString recvData, QTcpSocket *socket)
+{
+    QString name = recvData.split(" ").at(0);
+    QString password = recvData.split(" ").at(1);
+    bool checking = false;
+    int uid;
+    for (int i = 0; i < clientVector.count(); ++i) {
+        if ((!clientVector[i].name.compare(name)) && (!clientVector[i].passwd.compare(password))) {
+            checking = true;
+            uid = clientVector[i].uid;
+            break;
+        }
+    }
+    if (checking)
+        sendReturn(socket, cmdID, "yes " + QString::number(uid) + " ");
+    else
+        sendReturn(socket, cmdID, "no 0");
+}
+
+void Server::recvClientCmdFriendList(QString recvData, QTcpSocket *socket)
+{
+    int uid = recvData.toInt();
+    QString returnValue = "";
+    returnValue = returnValue + QString::number(clientVector.count() - 1) + " ";
+    for (int i = 0; i < clientVector.count(); ++i) {
+        if (clientVector[i].uid != uid) {
+            returnValue = returnValue + clientVector[i].name + " " + QString::number(clientVector[i].uid) + " ";
+        }
+    }
+    sendReturn(socket, cmdID, returnValue);
+}
+
+void Server::recvClientCmdTalkSend(QString recvData)
+{
+    QString sendUidString = recvData.split(" ").at(0);
+    QString recvUidString = recvData.split(" ").at(1);
+    int sendUid = sendUidString.toInt();
+    int recvUid = recvUidString.toInt();
+    QString messageText = recvData.split("\n").at(1);
+
+    qDebug() << "ID 4 " << sendUidString << recvUidString << messageText;
+    for (int i = 0; i < clientVector.count(); i++) {
+        if (clientVector[i].uid == recvUid) {
+            struct message tempMessage;
+            tempMessage.text = messageText;
+            tempMessage.uid = sendUid;
+            clientVector[i].messageBox.push_back(tempMessage);
+            break;
+        }
+    }
+}
+
+void Server::recvClientCmdTalkRecv(QString recvData, QTcpSocket *socket)
+{
+    int uid = recvData.toInt();
+    int msgNum = 0;
+    int senderUid;
+    QString senderMsg;
+    QString clientMsg = "";
+    for (int i = 0; i < clientVector.count(); i++) {
+        if (uid == clientVector[i].uid) {
+            msgNum = clientVector[i].messageBox.count();
+            if (msgNum > 0) {
+                clientMsg = clientMsg + QString::number(msgNum) + "\n";
+                for (int j = 0; j < msgNum; j++) {
+                    senderUid = clientVector[i].messageBox[j].uid;
+                    senderMsg = clientVector[i].messageBox[j].text;
+                    clientMsg = clientMsg + QString::number(senderUid) + "\n" + senderMsg + "\n";
+                }
+                qDebug() << "send 5 " << clientMsg;
+                sendReturn(socket, cmdID, clientMsg);
+                clientVector[i].messageBox.clear();
+            }
+            break;
+        }
+    }
+}
+
+void Server::recvClientCmdPicSend()
+{
+    QByteArray nextByte;
+    in >> nextByte;
+    for (int i = 0; i < clientVector.count(); i++)
+        if (clientVector[i].uid == (int)clientUid) {
+            clientVector[i].hasClientIcon = true;
+            break;
+        }
+
+    //QString clientFolder = picFolder + QString::number((int)clientUid);
+    QDir dir(picFolder);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QString clientFile = picFolder + QString::number((int)clientUid) + ".jpg";
+    qDebug() << "client file " << clientFile;
+    QFile file(clientFile);
+    file.open(QIODevice::WriteOnly);
+    file.write(nextByte);
+    file.close();
+
+    clientUid = 0;
+}
+
+void Server::recvClientCmdPicMeta(QTcpSocket *socket)
+{
+    QString clientMsg = "";
+    int picNumber = 0;
+    for (int i = 0; i < clientVector.count(); ++i) {
+        if (clientVector[i].hasClientIcon) {
+            clientMsg = clientMsg + " " + QString::number(clientVector[i].uid);
+            picNumber++;
+        }
+    }
+
+    if (picNumber > 0) {
+        clientMsg = QString::number(picNumber) + clientMsg + " ";
+        sendReturn(socket, cmdID, clientMsg);
+    }
+}
+
+void Server::recvClientCmdPicRecv(QString recvData, QTcpSocket *socket)
+{
+    int uid = recvData.toInt();
+    qDebug() << "cmdid 8 " << uid;
+    QString clientFile = picFolder + "/" + QString::number(uid) + ".jpg";
+    sendNetworkfile(clientFile, socket, uid);
+}
+
 void Server::readData()
 {
     QTcpSocket *socket = static_cast<QTcpSocket *>(sender());
@@ -81,14 +223,14 @@ void Server::readData()
     in.setVersion(QDataStream::Qt_5_9);
 
     if (cmdID == None) {
-        if (socket->bytesAvailable() < (int)sizeof(quint64))
+        if (socket->bytesAvailable() < (qint64)sizeof(quint64))
             return;
         in >> cmdID;
         qDebug() << "cmdid" <<cmdID;
     }
 
     if (blockSize == 0) {
-        if (socket->bytesAvailable() < (int)sizeof(quint64))
+        if (socket->bytesAvailable() < (qint64)sizeof(quint64))
             return;
         in >> blockSize;
         qDebug() << blockSize;
@@ -96,181 +238,55 @@ void Server::readData()
 
     if (cmdID == PicSend) {
         if (clientUid == 0) {
-            if (socket->bytesAvailable() < (int)sizeof(quint64))
+            if (socket->bytesAvailable() < (qint64)sizeof(quint64))
                 return;
             in >> clientUid;
             qDebug() << clientUid;
         }
 
-        if (socket->bytesAvailable() < blockSize)
+        if (socket->bytesAvailable() < (qint64)blockSize)
             return;
 
-        QByteArray nextByte;
-        in >> nextByte;
-        for (int i = 0; i < clientVector.count(); i++)
-            if (clientVector[i].uid == clientUid) {
-                clientVector[i].hasClientIcon = true;
-                break;
-            }
-
-        //QString clientFolder = picFolder + QString::number((int)clientUid);
-        QDir dir(picFolder);
-        if (!dir.exists()) {
-            dir.mkpath(".");
-        }
-        QString clientFile = picFolder + QString::number((int)clientUid) + ".jpg";
-        qDebug() << "client file " << clientFile;
-        QFile file(clientFile);
-        file.open(QIODevice::WriteOnly);
-        file.write(nextByte);
-        file.close();
-
-        clientUid = 0;
+        recvClientCmdPicSend();
     }
     else {
-        if (socket->bytesAvailable() < blockSize)
+        if (socket->bytesAvailable() < (qint64)blockSize)
             return;
 
-        QString myData;
-        in >> myData;
-        //qDebug() << "myData " << myData;
+        QString recvData;
+        in >> recvData;
 
-        if (cmdID == Register || cmdID == Login) {
-            QString name = myData.split(" ").at(0);
-            QString password = myData.split(" ").at(1);
-            //qDebug() << name;
-            //qDebug() << password;
-
-            if (cmdID == Register) {
-                for (int i = 0; i < clientVector.count(); ++i)
-                    if (!clientVector[i].name.compare(name))
-                        sendReturn(socket, cmdID, "0|User name " + name +" already exist|" );
-
-                struct clientInfo tempInfo;
-                tempInfo.name = name;
-                tempInfo.passwd = password;
-                tempInfo.uid = uid;
-                tempInfo.messageBox.clear();
-                tempInfo.hasClientIcon = false;
-                uid++;
-
-                clientVector.push_back(tempInfo);
-
-                /*
-                for (int i = 0; i < clientVector.count(); ++i)
-                    qDebug() << clientVector[i].name << " " << clientVector[i].passwd << " "<<clientVector[i].uid;
-                */
-
-                sendReturn(socket, cmdID, QString::number(uid-1) + "|Success add user : " + name + "|");
-            }
-
-            if (cmdID == Login) {
-                bool checking = false;
-                int uid;
-                for (int i = 0; i < clientVector.count(); ++i) {
-                    if ((!clientVector[i].name.compare(name)) && (!clientVector[i].passwd.compare(password))) {
-                        checking = true;
-                        uid = clientVector[i].uid;
-                        break;
-                    }
-                }
-                if (checking)
-                    sendReturn(socket, cmdID, "yes " + QString::number(uid) + " ");
-                else
-                    sendReturn(socket, cmdID, "no 0");
-            }
+        if (cmdID == Register) {
+            recvClientCmdRegister(recvData, socket);
         }
+
+        if (cmdID == Login) {
+            recvClientCmdLogin(recvData, socket);
+        }
+
         if (cmdID == FriendList) {
-            int uid = myData.toInt();
-            QString returnValue = "";
-            returnValue = returnValue + QString::number(clientVector.count() - 1) + " ";
-            for (int i = 0; i < clientVector.count(); ++i) {
-                if (clientVector[i].uid != uid) {
-                    returnValue = returnValue + clientVector[i].name + " " + QString::number(clientVector[i].uid) + " ";
-                }
-            }
-            sendReturn(socket, cmdID, returnValue);
+            recvClientCmdFriendList(recvData, socket);
         }
 
         if (cmdID == TalkSend) {
-            QString sendUidString = myData.split(" ").at(0);
-            QString recvUidString = myData.split(" ").at(1);
-            int sendUid = sendUidString.toInt();
-            int recvUid = recvUidString.toInt();
-            QString messageText = myData.split("\n").at(1);
-
-            qDebug() << "ID 4 " << sendUidString << recvUidString << messageText;
-            for (int i = 0; i < clientVector.count(); i++) {
-                if (clientVector[i].uid == recvUid) {
-                    struct message tempMessage;
-                    tempMessage.text = messageText;
-                    tempMessage.uid = sendUid;
-                    clientVector[i].messageBox.push_back(tempMessage);
-                    break;
-                }
-            }
+            recvClientCmdTalkSend(recvData);
         }
 
         if (cmdID == TalkRecv) {
-            int uid = myData.toInt();
-            int msgNum = 0;
-            int senderUid;
-            QString senderMsg;
-            QString clientMsg = "";
-            for (int i = 0; i < clientVector.count(); i++) {
-                if (uid == clientVector[i].uid) {
-                    msgNum = clientVector[i].messageBox.count();
-                    if (msgNum > 0) {
-                        clientMsg = clientMsg + QString::number(msgNum) + "\n";
-                        for (int j = 0; j < msgNum; j++) {
-                            senderUid = clientVector[i].messageBox[j].uid;
-                            senderMsg = clientVector[i].messageBox[j].text;
-                            clientMsg = clientMsg + QString::number(senderUid) + "\n" + senderMsg + "\n";
-                        }
-                        qDebug() << "send 5 " << clientMsg;
-                        sendReturn(socket, cmdID, clientMsg);
-                        clientVector[i].messageBox.clear();
-                    }
-                    break;
-                }
-            }
+            recvClientCmdTalkRecv(recvData, socket);
         }
 
         if (cmdID == PicMeta) {
-            QString clientMsg = "";
-            int picNumber = 0;
-            for (int i = 0; i < clientVector.count(); ++i) {
-                if (clientVector[i].hasClientIcon) {
-                    clientMsg = clientMsg + " " + QString::number(clientVector[i].uid);
-                    picNumber++;
-                }
-            }
-
-            if (picNumber > 0) {
-                clientMsg = QString::number(picNumber) + clientMsg + " ";
-                sendReturn(socket, cmdID, clientMsg);
-            }
+            recvClientCmdPicMeta(socket);
         }
 
         if (cmdID == PicRecv) {
-            int uid = myData.toInt();
-            qDebug() << "cmdid 8 " << uid;
-            QString clientFile = picFolder + "/" + QString::number(uid) + ".jpg";
-            sendNetworkfile(clientFile, socket, uid);
+            recvClientCmdPicRecv(recvData, socket);
         }
     }
 
     cmdID = None;
     blockSize = 0;
-    /*
-    QByteArray nextByte;
-    in >> nextByte;
-
-    QFile file("C:/Users/A60013/Pictures/temp/new.jpg");
-    file.open(QIODevice::WriteOnly);
-    file.write(nextByte);
-    file.close();
-    */
 }
 
 void Server::sendNetworkfile(QString filePath, QTcpSocket *socket, int uid)
@@ -301,28 +317,12 @@ void Server::sendNetworkfile(QString filePath, QTcpSocket *socket, int uid)
     socket->waitForBytesWritten();
 }
 
-void Server::sendTimeStamp()
+void Server::handleNewConn()
 {
-    /*
-    QByteArray block;
-    QDataStream out(&block, QIODevice::WriteOnly);
-    out.setVersion(QDataStream::Qt_5_9);
-
-    QDateTime timestamp;
-    QString mytime;
-
-    mytime = timestamp.currentDateTime().toString();
-    out << mytime;
-    */
     QTcpSocket *clientConnection = tcpServer->nextPendingConnection();
     connect(clientConnection, &QAbstractSocket::disconnected,
             clientConnection, &QObject::deleteLater);
     connect(clientConnection, &QIODevice::readyRead, this, &Server::readData);
-
-    //clientConnection->write(block);
-
-
-    //clientConnection->disconnectFromHost();
 }
 
 Server::~Server()

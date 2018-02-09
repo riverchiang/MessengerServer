@@ -42,7 +42,7 @@ public:
 
 private slots:
     void sessionOpened();
-    void sendTimeStamp();
+    void handleNewConn();
     void readData();
 
 private:
@@ -62,6 +62,16 @@ private:
     //QString picFolder = "L:/Users/admin/Pictures/temp/server/";
     void sendReturn(QTcpSocket *socket, quint64 id, QString message);
     void sendNetworkfile(QString filePath, QTcpSocket *socket, int uid);
+
+    // Recv network function
+    void recvClientCmdRegister(QString recvData, QTcpSocket *socket);
+    void recvClientCmdLogin(QString recvData, QTcpSocket *socket);
+    void recvClientCmdFriendList(QString recvData, QTcpSocket *socket);
+    void recvClientCmdTalkSend(QString recvData);
+    void recvClientCmdTalkRecv(QString recvData, QTcpSocket *socket);
+    void recvClientCmdPicSend();
+    void recvClientCmdPicMeta(QTcpSocket *socket);
+    void recvClientCmdPicRecv(QString recvData, QTcpSocket *socket);
 };
 
 #endif // SERVER_H
