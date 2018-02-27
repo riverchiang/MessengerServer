@@ -19,8 +19,10 @@ class Server;
 
 struct message
 {
+    bool isText;
     int uid;
     QString text;
+    int gifNum;
 };
 
 struct clientInfo
@@ -47,7 +49,7 @@ private slots:
 
 private:
     Ui::Server *ui;
-    enum MessengerCmd{None = 0, Register, Login, FriendList, TalkSend, TalkRecv, PicSend, PicMeta, PicRecv};
+    enum MessengerCmd{None = 0, Register, Login, FriendList, TalkSend, TalkRecv, PicSend, PicMeta, PicRecv, GifSend, GifRecv};
     QLabel *statusLabel = nullptr;
     QTcpServer *tcpServer = nullptr;
     QNetworkSession *networkSession = nullptr;
@@ -72,6 +74,8 @@ private:
     void recvClientCmdPicSend();
     void recvClientCmdPicMeta(QTcpSocket *socket);
     void recvClientCmdPicRecv(QString recvData, QTcpSocket *socket);
+    void recvClientCmdGifSend(QString recvData);
+    //void recvClientCmdGifRecv(QString recvData, QTcpSocket *socket);
 };
 
 #endif // SERVER_H
